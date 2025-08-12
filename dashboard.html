@@ -101,6 +101,10 @@
     .menu-list li {
       padding: 1rem 1.5rem;
       border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+    }
+    .menu-list li:hover {
+        background-color: #f0f0f0;
     }
     .menu-list li:last-child {
       border-bottom: none;
@@ -137,6 +141,19 @@
         font-weight: 400;
         color: var(--light-text-color);
         font-size: 0.8rem;
+    }
+    .menu-list .found-nasabah {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+        color: var(--text-color);
+        background-color: #e0f2f1; /* Warna hijau muda */
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .menu-list .found-nasabah:hover {
+        background-color: #b2dfdb;
     }
 
     main {
@@ -296,7 +313,7 @@
 
 <header>
   <button id="menuToggle">☰</button>
-  <h1>Catatan Pinjaman</h1>
+  <h1 id="mainTitle">Catatan Pinjaman</h1>
   <span id="saldoRingkas">Saldo: Rp 0</span>
 </header>
 
@@ -310,8 +327,21 @@
             <small>Email: <span id="loggedInUserEmail"></span></small>
             <small style="display:none">ID: <span id="loggedInUserId"></span></small>
         </li>
-        <li><a href="#" id="viewAllBtn">Semua Catatan</a></li>
-        <li id="peminjamListContainer"></li>
+        <li>
+            <label for="switchAkun" style="font-weight:600;">Tipe Akun:</label>
+            <select id="switchAkun" style="width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;margin-top:5px;">
+                <option value="peminjam">Pemberi Pinjaman</option>
+                <option value="penerima">Penerima Pinjaman</option>
+            </select>
+        </li>
+        <li id="viewAllBtn"><a href="#">Semua Catatan</a></li>
+        <ul id="friendsList" style="list-style:none;padding:0;margin:0;"></ul>
+        <li>
+            <button id="tambahNasabahBtn" style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;">Cari/Tambahkan Nasabah</button>
+        </li>
+        <li>
+            <button id="lihatSemuaPinjamanBtn" style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;">Lihat Semua Data Pinjaman (Debug)</button>
+        </li>
         <li><button id="logoutBtn">Logout</button></li>
     </ul>
 </nav>
@@ -369,6 +399,21 @@
   </div>
 </div>
 
+<div class="modal-bg" id="modalNasabah">
+  <div class="modal">
+    <h3>Cari/Tambahkan Nasabah</h3>
+    <p>Masukkan nama dan email untuk memeriksa apakah nasabah terdaftar.</p>
+    <label>Nama</label>
+    <input type="text" id="inputNasabahNama" placeholder="Contoh: Budi">
+    <label>Email</label>
+    <input type="email" id="inputNasabahEmail" placeholder="contoh@email.com">
+    <div class="actions">
+      <button id="batalNasabahBtn">Batal</button>
+      <button id="simpanNasabahBtn">Cari/Konfirmasi</button>
+    </div>
+  </div>
+</div>
+
 <script>
     const SUPABASE_URL = 'https://wfjxvaybfdxhycbrxufw.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indmanh2YXliZmR4aHljYnJ4dWZ3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDgwODM4NSwiZXhwIjoyMDcwMzg0Mzg1fQ.tTupZwezG2GIOSfOUwd7yP7WWn0ENL91Qb2ZAqGzEQQ';
@@ -400,18 +445,101 @@
     const loggedInUserName = document.getElementById('loggedInUserName');
     const loggedInUserEmail = document.getElementById('loggedInUserEmail');
     const loggedInUserId = document.getElementById('loggedInUserId');
-    const peminjamListContainer = document.getElementById('peminjamListContainer');
+    const mainTitle = document.getElementById('mainTitle');
+    
     const logoutBtn = document.getElementById('logoutBtn');
     const viewAllBtn = document.getElementById('viewAllBtn');
+    const tambahNasabahBtn = document.getElementById('tambahNasabahBtn');
+    const modalNasabah = document.getElementById('modalNasabah');
+    const inputNasabahNama = document.getElementById('inputNasabahNama');
+    const inputNasabahEmail = document.getElementById('inputNasabahEmail');
+    const batalNasabahBtn = document.getElementById('batalNasabahBtn');
+    const simpanNasabahBtn = document.getElementById('simpanNasabahBtn');
+    const switchAkun = document.getElementById('switchAkun');
+    const lihatSemuaPinjamanBtn = document.getElementById('lihatSemuaPinjamanBtn');
 
-    let dataMasuk = [];
-    let dataKeluar = [];
+    // New elements
+    const friendsList = document.getElementById('friendsList');
+
     let currentUserId = null;
-    let selectedFriendId = null;
-    let selectedFriendName = null;
     let allLoanData = [];
     let userProfile = null;
+    let selectedFriendId = null;
+    let selectedFriendName = null;
 
+    lihatSemuaPinjamanBtn.onclick = async () => {
+        const { data, error } = await supabaseClient
+            .from('pinjaman')
+            .select('*')
+            .order('tanggal_pinjam', { ascending: false });
+
+        if (error) {
+            return alert('❌ Gagal mengambil data: ' + error.message);
+        }
+
+        let logText = '=== DAFTAR SEMUA PINJAMAN ===\n';
+        data.forEach((p, i) => {
+            logText += `${i + 1}.\n` +
+                    `   ID Pinjaman       : ${p.id}\n` +
+                    `   Peminjam User ID  : ${p.peminjam_user_id}\n` +
+                    `   Penerima User ID  : ${p.penerima_user_id}\n` +
+                    `   Nama Nasabah      : ${p.nama_nasabah}\n` +
+                    `   Jumlah            : ${p.jumlah}\n` +
+                    `   Jenis             : ${p.jenis}\n` +
+                    `   Tanggal Pinjam    : ${p.tanggal_pinjam}\n` +
+                    `   Bukti URL         : ${p.bukti_url || '-'}\n\n`;
+        });
+
+        // Popup modal
+        const logModal = document.createElement('div');
+        logModal.style.position = 'fixed';
+        logModal.style.top = '0';
+        logModal.style.left = '0';
+        logModal.style.width = '100%';
+        logModal.style.height = '100%';
+        logModal.style.background = 'rgba(0,0,0,0.6)';
+        logModal.style.display = 'flex';
+        logModal.style.justifyContent = 'center';
+        logModal.style.alignItems = 'center';
+        logModal.style.zIndex = '9999';
+
+        const logBox = document.createElement('div');
+        logBox.style.background = '#fff';
+        logBox.style.padding = '15px';
+        logBox.style.borderRadius = '8px';
+        logBox.style.maxWidth = '90%';
+        logBox.style.width = '500px';
+        logBox.style.fontFamily = 'monospace';
+        logBox.style.whiteSpace = 'pre-wrap';
+        logBox.style.maxHeight = '80vh';
+        logBox.style.overflowY = 'auto';
+
+        const logContent = document.createElement('textarea');
+        logContent.value = logText.trim();
+        logContent.style.width = '100%';
+        logContent.style.height = '300px';
+        logContent.style.marginBottom = '10px';
+        logContent.readOnly = true;
+
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = 'Copy Log';
+        copyBtn.style.marginRight = '10px';
+        copyBtn.onclick = () => {
+            navigator.clipboard.writeText(logContent.value);
+            alert('Log berhasil disalin.');
+        };
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = 'Tutup';
+        closeBtn.onclick = () => logModal.remove();
+
+        logBox.appendChild(logContent);
+        logBox.appendChild(copyBtn);
+        logBox.appendChild(closeBtn);
+        logModal.appendChild(logBox);
+        document.body.appendChild(logModal);
+    };
+    
     function formatRupiah(angka) {
         if (angka === null || angka === undefined) return 'Rp 0';
         let number_string = angka.toString().replace(/[^,\d]/g, '');
@@ -435,7 +563,6 @@
         }
         currentUserId = session.user.id;
         
-        // Ambil data profil dari tabel 'profiles'
         const { data: profileData, error: profileError } = await supabaseClient
             .from('profiles')
             .select('email, nama, tipe_akun')
@@ -446,21 +573,43 @@
             console.error("Gagal mengambil data profil:", profileError);
             loggedInUserName.textContent = session.user.email;
         } else {
+            userProfile = profileData;
             loggedInUserName.textContent = profileData.nama || profileData.email;
             loggedInUserEmail.textContent = profileData.email;
-            userProfile = profileData;
-
-            // Logika untuk mengubah tema dan judul berdasarkan tipe akun
-            if (userProfile.tipe_akun === 'penerima') {
-                document.body.classList.add('penerima-theme');
-                document.querySelector('#keluar h2').textContent = 'Uang diterima';
-                document.querySelector('#masuk h2').textContent = 'Uang yang dikembalikan';
-            }
+            switchAkun.value = userProfile.tipe_akun;
+            updateThemeAndLabels(userProfile.tipe_akun);
         }
 
         loggedInUserId.textContent = currentUserId;
         fetchData();
     });
+
+    function updateThemeAndLabels(tipeAkun) {
+        if (tipeAkun === 'penerima') {
+            document.body.classList.add('penerima-theme');
+            document.querySelector('#keluar h2').textContent = 'Uang diterima';
+            document.querySelector('#masuk h2').textContent = 'Uang yang dikembalikan';
+        } else {
+            document.body.classList.remove('penerima-theme');
+            document.querySelector('#keluar h2').textContent = 'Uang dipinjamkan';
+            document.querySelector('#masuk h2').textContent = 'Uang dikembalikan';
+        }
+    }
+
+    switchAkun.onchange = async (e) => {
+        const newTipeAkun = e.target.value;
+        const { error } = await supabaseClient
+            .from('profiles')
+            .update({ tipe_akun: newTipeAkun })
+            .eq('id', currentUserId);
+        if (!error) {
+            userProfile.tipe_akun = newTipeAkun;
+            updateThemeAndLabels(newTipeAkun);
+            fetchData();
+        } else {
+            alert('Gagal mengganti tipe akun: ' + error.message);
+        }
+    };
 
     if (menuToggle && hamburgerMenu && menuOverlay) {
         menuToggle.onclick = () => {
@@ -482,42 +631,108 @@
             alert('Gagal logout: ' + error.message);
         }
     };
+
+    // Tambahkan event listener untuk tombol tambah catatan
     tambahBtn.onclick = () => {
-        if (selectedFriendId) {
-            namaNasabah.value = selectedFriendName;
-            namaNasabah.disabled = true;
-        } else {
-            namaNasabah.value = '';
-            namaNasabah.disabled = false;
-        }
+        namaNasabah.value = '';
         modalForm.style.display = 'flex';
         nominal.value = '';
         tanggal.value = '';
         bukti.value = '';
-    }
+
+        // Reset the selected friend state
+        selectedFriendId = null;
+        selectedFriendName = null;
+        friendsList.innerHTML = ''; // Clear the found nasabah list
+        mainTitle.textContent = 'Catatan Pinjaman';
+    };
+
     batalBtn.onclick = () => modalForm.style.display = 'none';
     modalForm.onclick = (e) => { if(e.target === modalForm) modalForm.style.display = 'none'; }
     tutupBukti.onclick = () => modalBukti.style.display = 'none';
     modalBukti.onclick = (e) => { if(e.target === modalBukti) modalBukti.style.display = 'none'; }
 
     viewAllBtn.onclick = () => {
-        selectedFriendId = null;
+        selectedFriendId = null; // Clear selected friend
         selectedFriendName = null;
+        friendsList.innerHTML = ''; // Clear the found nasabah list
+        mainTitle.textContent = 'Catatan Pinjaman';
         fetchData();
         hamburgerMenu.classList.remove('open');
         menuOverlay.style.display = 'none';
     };
+    
+    // --- KODE UNTUK MODAL TAMBAH/CARI NASABAH ---
+    tambahNasabahBtn.onclick = () => {
+        modalNasabah.style.display = 'flex';
+        inputNasabahNama.value = '';
+        inputNasabahEmail.value = '';
+        hamburgerMenu.classList.remove('open');
+        menuOverlay.style.display = 'none';
+    };
+    batalNasabahBtn.onclick = () => modalNasabah.style.display = 'none';
+    modalNasabah.onclick = (e) => { 
+        if(e.target === modalNasabah) modalNasabah.style.display = 'none'; 
+    };
 
-    async function fetchData(friendId = null) {
+    simpanNasabahBtn.onclick = async () => {
+        const nama = inputNasabahNama.value.trim();
+        const email = inputNasabahEmail.value.trim();
+
+        if (!nama || !email) {
+            return alert('Nama dan email harus diisi untuk mencari nasabah.');
+        }
+
+        const { data: profileData, error } = await supabaseClient
+            .from('profiles')
+            .select('id, nama, email')
+            .ilike('nama', nama)       
+            .ilike('email', email)
+            .maybeSingle();
+
+        modalNasabah.style.display = 'none';
+        inputNasabahNama.value = '';
+        inputNasabahEmail.value = '';
+
+        if (error) {
+            alert('❌ Terjadi kesalahan saat mencari nasabah: ' + error.message);
+            console.error(error);
+            return;
+        }
+
+        friendsList.innerHTML = ''; // Clear previous found nasabah
+        if (profileData) {
+            const foundNasabahLi = document.createElement('li');
+            foundNasabahLi.className = 'found-nasabah';
+            foundNasabahLi.innerHTML = `<span>👤 ${profileData.nama}</span>`;
+            foundNasabahLi.onclick = () => fetchDataByFriend(profileData.id, profileData.nama);
+            friendsList.appendChild(foundNasabahLi);
+            alert(`✅ Nasabah ditemukan!\nNama: ${profileData.nama}\nEmail: ${profileData.email}\nSilakan klik nama di menu samping untuk melihat data pinjaman.`);
+        } else {
+            alert(`ℹ️ Nasabah dengan nama "${nama}" dan email "${email}" tidak ditemukan.`);
+        }
+    };
+
+    function fetchDataByFriend(friendId, friendName) {
+        selectedFriendId = friendId;
+        selectedFriendName = friendName;
+        mainTitle.textContent = `Pinjaman dengan ${friendName}`;
+        fetchData(); // Call fetchData with the selected friend
+        hamburgerMenu.classList.remove('open');
+        menuOverlay.style.display = 'none';
+    }
+
+    async function fetchData() {
         if (!currentUserId || !userProfile) {
             console.warn("User ID atau Profil belum tersedia.");
             return;
         }
         
         let query = supabaseClient.from('pinjaman').select('*');
-        
-        if (friendId) {
-            query = query.or(`and(peminjam_user_id.eq.${currentUserId},penerima_user_id.eq.${friendId}),and(peminjam_user_id.eq.${friendId},penerima_user_id.eq.${currentUserId})`);
+
+        // Apply filter based on selected friend, if any
+        if (selectedFriendId) {
+            query = query.or(`and(peminjam_user_id.eq.${currentUserId},penerima_user_id.eq.${selectedFriendId}),and(penerima_user_id.eq.${currentUserId},peminjam_user_id.eq.${selectedFriendId})`);
         } else {
             query = query.or(`peminjam_user_id.eq.${currentUserId},penerima_user_id.eq.${currentUserId}`);
         }
@@ -534,61 +749,22 @@
         let filteredDataKeluar, filteredDataMasuk;
         
         if (userProfile.tipe_akun === 'peminjam') {
-            // Untuk peminjam: Keluar = uang yg dipinjamkan, Masuk = uang yg dikembalikan
             filteredDataKeluar = allLoanData.filter(item => item.peminjam_user_id === currentUserId && item.jenis === 'dipinjamkan');
             filteredDataMasuk = allLoanData.filter(item => item.penerima_user_id === currentUserId && item.jenis === 'dikembalikan');
         } else {
-            // Untuk penerima: Keluar = uang yg diterima, Masuk = uang yg dikembalikan
             filteredDataKeluar = allLoanData.filter(item => item.penerima_user_id === currentUserId && item.jenis === 'dipinjamkan');
             filteredDataMasuk = allLoanData.filter(item => item.peminjam_user_id === currentUserId && item.jenis === 'dikembalikan');
         }
-
+        
         const h2Keluar = document.querySelector('#keluar h2');
         const h2Masuk = document.querySelector('#masuk h2');
 
-        if (selectedFriendName) {
-            h2Keluar.textContent = userProfile.tipe_akun === 'peminjam' ? `Dipinjamkan ke ${selectedFriendName}` : `Diterima dari ${selectedFriendName}`;
-            h2Masuk.textContent = userProfile.tipe_akun === 'peminjam' ? `Dikembalikan oleh ${selectedFriendName}` : `Dikembalikan ke ${selectedFriendName}`;
-        } else {
-            h2Keluar.textContent = userProfile.tipe_akun === 'peminjam' ? 'Uang dipinjamkan' : 'Uang diterima';
-            h2Masuk.textContent = userProfile.tipe_akun === 'peminjam' ? 'Uang dikembalikan' : 'Uang yang dikembalikan';
-        }
+        h2Keluar.textContent = userProfile.tipe_akun === 'peminjam' ? 'Uang dipinjamkan' : 'Uang diterima';
+        h2Masuk.textContent = userProfile.tipe_akun === 'peminjam' ? 'Uang dikembalikan' : 'Uang yang dikembalikan';
         
         renderList(listKeluar, filteredDataKeluar);
         renderList(listMasuk, filteredDataMasuk);
         updateTotals(filteredDataKeluar, filteredDataMasuk);
-        updateFriendsList();
-    }
-    
-    async function updateFriendsList() {
-        const uniqueFriends = new Map();
-        allLoanData.forEach(item => {
-            let friendId, friendName;
-            if (item.peminjam_user_id === currentUserId) {
-                friendId = item.penerima_user_id;
-                friendName = item.nama_nasabah;
-            } else {
-                friendId = item.peminjam_user_id;
-                friendName = item.nama_nasabah;
-            }
-            if (friendId && friendId !== currentUserId && friendName) {
-                uniqueFriends.set(friendId, friendName);
-            }
-        });
-
-        peminjamListContainer.innerHTML = '<li><strong>Lawan Transaksi:</strong></li>';
-        uniqueFriends.forEach((name, id) => {
-            const li = document.createElement('li');
-            li.innerHTML = `<a href="#" data-friend-id="${id}" data-friend-name="${name}">${name}</a>`;
-            li.onclick = (e) => {
-                selectedFriendId = id;
-                selectedFriendName = name;
-                fetchData(id);
-                hamburgerMenu.classList.remove('open');
-                menuOverlay.style.display = 'none';
-            };
-            peminjamListContainer.appendChild(li);
-        });
     }
 
     simpanBtn.onclick = async () => {
@@ -596,35 +772,46 @@
         const nominalValue = parseInt(nominal.value.replace(/[^0-9]/g, '')) || 0;
         const tgl = tanggal.value;
         const file = bukti.files[0];
-        const nasabah = namaNasabah.value.trim();
+        const nasabahNamaInput = namaNasabah.value.trim();
 
-        if (nominalValue <= 0 || !tgl || !nasabah) {
-            return alert('Lengkapi semua data dengan benar.');
+        if (!nasabahNamaInput) {
+            return alert('Nama nasabah harus diisi.');
         }
+
+        const { data: friendProfile, error: friendError } = await supabaseClient
+            .from('profiles')
+            .select('id')
+            .ilike('nama', nasabahNamaInput)
+            .maybeSingle();
+
+        if (friendError || !friendProfile) {
+            alert('Nama nasabah tidak ditemukan atau tidak valid. Pastikan nasabah terdaftar.');
+            console.error('Friend Profile Error:', friendError);
+            return;
+        }
+        const friendId = friendProfile.id;
 
         let peminjamId = null;
         let penerimaId = null;
-        const friendId = selectedFriendId;
-        
-        // Logika untuk menyimpan data berdasarkan tipe akun
+
         if (userProfile.tipe_akun === 'peminjam') {
             if (jenisPinjaman === 'dipinjamkan') {
                 peminjamId = currentUserId;
                 penerimaId = friendId;
-            } else { // Jenis 'dikembalikan'
+            } else {
                 penerimaId = currentUserId;
                 peminjamId = friendId;
             }
-        } else { // Tipe akun 'penerima'
-            if (jenisPinjaman === 'dipinjamkan') { // Uang diterima
+        } else {
+            if (jenisPinjaman === 'dipinjamkan') {
                 penerimaId = currentUserId;
                 peminjamId = friendId;
-            } else { // Uang dikembalikan
+            } else {
                 peminjamId = currentUserId;
                 penerimaId = friendId;
             }
         }
-        
+
         let bukti_url = null;
         if (file) {
             const fileName = `${currentUserId}/${Date.now()}-${file.name}`;
@@ -651,7 +838,7 @@
                 tanggal_pinjam: tgl, 
                 jenis: jenisPinjaman,
                 bukti_url: bukti_url,
-                nama_nasabah: nasabah
+                nama_nasabah: nasabahNamaInput
             }]);
 
         if (insertError) {
@@ -659,7 +846,7 @@
             console.error('Insert Error:', insertError);
         } else {
             modalForm.style.display = 'none';
-            fetchData(selectedFriendId);
+            fetchData();
         }
     };
 
@@ -668,7 +855,7 @@
             return;
         }
 
-        const { data, error } = await supabaseClient
+        const { error } = await supabaseClient
             .from('pinjaman')
             .update({ jenis: 'dikembalikan' })
             .eq('id', id);
@@ -678,7 +865,7 @@
             console.error('Update Loan Error:', error);
         } else {
             alert('✅ Pinjaman berhasil ditandai sebagai dikembalikan!');
-            fetchData(selectedFriendId);
+            fetchData();
         }
     };
 
@@ -686,7 +873,7 @@
         if (!confirm('Apakah Anda yakin ingin menghapus catatan ini?')) {
             return;
         }
-        if (bukti_url) {
+        if (bukti_url && bukti_url !== 'null' && bukti_url !== 'undefined') {
             const pathSegments = bukti_url.split('/uploads/')[1];
             if (pathSegments) {
                  const { error: storageError } = await supabaseClient.storage
@@ -706,7 +893,7 @@
             alert('❌ Gagal menghapus data: ' + deleteError.message);
             console.error('Delete Error:', deleteError);
         } else {
-            fetchData(selectedFriendId);
+            fetchData();
         }
     }
 
@@ -729,7 +916,7 @@
 
             div.innerHTML = `
                 <div class="item-info">
-                    <span>${formatRupiah(d.jumlah)}<br><small>${d.tanggal_pinjam}</small></span>
+                    <span>${formatRupiah(d.jumlah)}<br><small>${d.tanggal_pinjam}</small><br><small>Nasabah: ${d.nama_nasabah}</small></span>
                 </div>
                 <div>
                     ${lunasiButton}
