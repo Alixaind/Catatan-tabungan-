@@ -7,6 +7,8 @@
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
@@ -94,6 +96,26 @@
             text-decoration: none;
             font-weight: 600;
         }
+        .password-container {
+            position: relative;
+            width: 100%;
+        }
+        .password-container input {
+            width: 100%;
+            padding-right: 40px;
+        }
+        .password-container .fas {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #666;
+            transition: color 0.2s;
+        }
+        .password-container .fas:hover {
+            color: var(--primary-color);
+        }
     </style>
 </head>
 <body>
@@ -107,7 +129,10 @@
             </div>
             <div class="form-group">
                 <label for="login-password">Password</label>
-                <input type="password" id="login-password" required>
+                <div class="password-container">
+                    <input type="password" id="login-password" required>
+                    <i class="fas fa-eye" id="toggleLoginPassword"></i>
+                </div>
             </div>
             <button type="submit">Login</button>
         </form>
@@ -123,7 +148,10 @@
             </div>
             <div class="form-group">
                 <label for="register-password">Password</label>
-                <input type="password" id="register-password" required>
+                <div class="password-container">
+                    <input type="password" id="register-password" required>
+                    <i class="fas fa-eye" id="toggleRegisterPassword"></i>
+                </div>
             </div>
             <div class="form-group">
                 <label for="tipe-akun">Tipe Akun</label>
@@ -146,8 +174,8 @@
     <script>
         // --- GANTI DENGAN KUNCI SUPABASE ANDA ---
         const SUPABASE_URL = 'https://wfjxvaybfdxhycbrxufw.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indmanh2YXliZmR4aHljYnJ4dWZ3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDgwODM4NSwiZXhwIjoyMDcwMzg0Mzg1fQ.tTupZwezG2GIOSfOUwd7yP7WWn0ENL91Qb2ZAqGzEQQ';
-        
+  	  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indmanh2YXliZmR4aHljYnJ4dWZ3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDgwODM4NSwiZXhwIjoyMDcwMzg0Mzg1fQ.tTupZwezG2GIOSfOUwd7yP7WWn0ENL91Qb2ZAqGzEQQ';
+   
         const { createClient } = supabase;
         const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -158,10 +186,15 @@
         const switchRegisterBtn = document.getElementById('switch-register');
         const messageEl = document.getElementById('message');
 
+        const toggleLoginPassword = document.getElementById('toggleLoginPassword');
+        const loginPassword = document.getElementById('login-password');
+        const toggleRegisterPassword = document.getElementById('toggleRegisterPassword');
+        const registerPassword = document.getElementById('register-password');
+
         async function checkUser() {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
-                window.location.href = 'dashboard.html'; // Ganti dengan nama file dashboard Anda
+                window.location.href = 'dashboard.html';
             }
         }
         checkUser();
@@ -185,55 +218,95 @@
         }
 
         loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    
+    // Nonaktifkan tombol untuk mencegah klik ganda
+    const loginBtn = e.submitter;
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Memproses...';
 
-            const { error } = await supabaseClient.auth.signInWithPassword({
-                email: email,
-                password: password,
-            });
+    const { error } = await supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: password,
+    });
 
-            if (error) {
-                messageEl.textContent = '❌ Gagal login: ' + error.message;
-            } else {
-                window.location.href = 'dashboard.html'; // Ganti dengan nama file dashboard Anda
-            }
-        });
+    if (error) {
+        messageEl.textContent = '❌ Gagal login: ' + error.message;
+        loginBtn.disabled = false;
+        loginBtn.textContent = 'Login';
+    } else {
+        messageEl.textContent = ''; // Hapus pesan error sebelumnya
+        window.location.href = 'dashboard.html';
+    }
+});
 
         registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const nama = document.getElementById('register-name').value;
-            const email = document.getElementById('register-email').value;
-            const password = document.getElementById('register-password').value;
-            const tipeAkun = document.getElementById('tipe-akun').value;
+    e.preventDefault();
+    const nama = document.getElementById('register-name').value;
+    const email = document.getElementById('register-email').value;
+    const password = document.getElementById('register-password').value;
+    const tipeAkun = document.getElementById('tipe-akun').value;
+    
+    // Nonaktifkan tombol untuk mencegah klik ganda
+    const registerBtn = e.submitter;
+    registerBtn.disabled = true;
+    registerBtn.textContent = 'Memproses...';
 
-            const { data, error } = await supabaseClient.auth.signUp({
-                email: email,
-                password: password,
+    const { data, error } = await supabaseClient.auth.signUp({
+        email: email,
+        password: password,
+    });
+
+    if (error) {
+        messageEl.textContent = '❌ Gagal registrasi: ' + error.message;
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Registrasi';
+    } else if (data.user) {
+        const { error: profileError } = await supabaseClient
+            .from('profiles')
+            .insert([{ 
+                id: data.user.id, 
+                email: email, 
+                tipe_akun: tipeAkun,
+                nama: nama
+            }]);
+        
+        if (profileError) {
+            messageEl.textContent = '✅ Registrasi berhasil, tapi gagal menyimpan data profil: ' + profileError.message;
+        } else {
+            // Tampilkan pop-up notifikasi
+            alert("✅ Berhasil mendaftar! Silakan cek email Anda untuk konfirmasi.");
+            
+            // Pindahkan pengguna kembali ke halaman login
+            showLoginForm();
+            messageEl.textContent = "Silakan login setelah mengkonfirmasi email Anda.";
+        }
+        registerBtn.disabled = false;
+        registerBtn.textContent = 'Registrasi';
+    }
+});
+
+        // Toggle password untuk Login
+        if (toggleLoginPassword && loginPassword) {
+            toggleLoginPassword.addEventListener('click', () => {
+                const type = loginPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+                loginPassword.setAttribute('type', type);
+                toggleLoginPassword.classList.toggle('fa-eye');
+                toggleLoginPassword.classList.toggle('fa-eye-slash');
             });
+        }
 
-            if (error) {
-                messageEl.textContent = '❌ Gagal registrasi: ' + error.message;
-            } else if (data.user) {
-                const { error: profileError } = await supabaseClient
-                    .from('profiles')
-                    .insert([{ 
-                        id: data.user.id, 
-                        email: email, 
-                        tipe_akun: tipeAkun,
-                        nama: nama // BARIS BARU: Tambahkan nama
-                    }]);
-                
-                if (profileError) {
-                    messageEl.textContent = '✅ Registrasi berhasil, tapi gagal menyimpan data profil: ' + profileError.message;
-                    await supabaseClient.auth.signOut();
-                } else {
-                    messageEl.textContent = '✅ Registrasi berhasil! Silakan cek email untuk verifikasi.';
-                    showLoginForm();
-                }
-            }
-        });
+        // Toggle password untuk Registrasi
+        if (toggleRegisterPassword && registerPassword) {
+            toggleRegisterPassword.addEventListener('click', () => {
+                const type = registerPassword.getAttribute('type') === 'password' ? 'text' : 'password';
+                registerPassword.setAttribute('type', type);
+                toggleRegisterPassword.classList.toggle('fa-eye');
+                toggleRegisterPassword.classList.toggle('fa-eye-slash');
+            });
+        }
     </script>
 </body>
-</html>
+                        </html>
