@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catatan Pinjaman</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary-color-peminjam: #2196F3; /* Biru untuk peminjam */
+      --primary-color-penerima: #FFC107; /* Kuning untuk penerima */
+      --secondary-color: #f44336;
+      --background-color: #f5f5f5;
+      --card-bg: #ffffff;
+      --text-color: #333333;
+      --light-text-color: #666666;
+      --border-color: #e0e0e0;
+      --shadow: 0 2px 5px rgba(0,0,0,0.1);
+      --border-radius: 8px;
+    }
+    body {
+      font-family: 'Poppins', Arial, sans-serif;
+      margin: 0;
+      background: var(--background-color);
+      color: var(--text-color);
+    }
+    header {
+      background: var(--primary-color-peminjam); /* Default ke Biru */
+      color: white;
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      position: relative;
+      z-index: 101;
+    }
+    body.penerima-theme header {
+      background: var(--primary-color-penerima); /* Ganti ke Kuning */
+    }
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+    #menuToggle {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 28px;
+      cursor: pointer;
+    }
+
+    .menu-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+    }
+    .hamburger-menu {
+      position: fixed;
+      top: 0;
+      left: -300px;
+      width: 280px;
+      height: 100%;
+      background: var(--card-bg);
+      box-shadow: 4px 0 15px rgba(0,0,0,0.15);
+      z-index: 100;
+      transition: left 0.3s ease-in-out;
+      display: flex;
+      flex-direction: column;
+    }
+    .hamburger-menu.open {
+      left: 0;
+    }
+    .menu-header {
+      padding: 1.5rem;
+      background: var(--primary-color-peminjam); /* Default ke Biru */
+      color: white;
+      font-weight: 600;
+      font-size: 1.2rem;
+    }
+    body.penerima-theme .menu-header {
+      background: var(--primary-color-penerima); /* Ganti ke Kuning */
+    }
+    .menu-list {
+      flex-grow: 1;
+      padding: 0;
+      list-style: none;
+      margin: 0;
+    }
+    .menu-list li {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+    }
+    .menu-list li:hover {
+        background-color: #f0f0f0;
+    }
+    .menu-list li:last-child {
+      border-bottom: none;
+    }
+    .menu-list li a {
+      text-decoration: none;
+      color: var(--text-color);
+      display: block;
+      font-weight: 500;
+    }
+    .menu-list li button {
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--secondary-color);
+      font-size: 1rem;
+      font-family: 'Poppins', sans-serif;
+      cursor: pointer;
+      padding: 0;
+    }
+    .menu-list .user-info {
+        font-weight: 600;
+        color: var(--primary-color-peminjam); /* Default ke Biru */
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        margin-bottom: 1rem;
+    }
+    body.penerima-theme .menu-list .user-info {
+        color: var(--primary-color-penerima); /* Ganti ke Kuning */
+    }
+    .menu-list .found-nasabah {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid var(--border-color);
+        font-weight: 600;
+        color: var(--text-color);
+        background-color: #e0f2f1; /* Warna hijau muda */
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .menu-list .found-nasabah:hover {
+        background-color: #b2dfdb;
+    }
+    /* Style for selected friend */
+    .menu-list .found-nasabah.selected {
+        border: 2px solid var(--primary-color-penerima); /* Orange border */
+        box-shadow: 0 0 8px rgba(255,193,7,0.5); /* Orange shadow */
+    }
+
+    main {
+      display: flex;
+      padding: 15px;
+      gap: 15px;
+      padding-bottom: 80px;
+    }
+    .column {
+      flex: 1;
+      background: var(--card-bg);
+      border-radius: var(--border-radius);
+      padding: 10px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+    }
+    .column h2 {
+      margin-top: 0;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+    .list {
+      flex-grow: 1;
+    }
+    .item {
+      border-bottom: 1px solid #ddd;
+      padding: 8px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .item:last-child {
+      border-bottom: none;
+    }
+    .item-info span {
+      display: block;
+      font-weight: 500;
+    }
+    .item-info small {
+      font-size: 0.8em;
+      color: var(--light-text-color);
+    }
+    .item button {
+      background: var(--primary-color-peminjam);
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 5px;
+    }
+    body.penerima-theme .item button {
+        background: var(--primary-color-penerima);
+    }
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: var(--card-bg);
+      padding: 10px;
+      box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+    }
+    footer .total {
+      display: flex;
+      flex-direction: column;
+    }
+    footer .total strong {
+        font-size: 1.1em;
+        color: var(--primary-color-peminjam); /* Default ke Biru */
+    }
+    body.penerima-theme footer .total strong {
+        color: var(--primary-color-penerima); /* Ganti ke Kuning */
+    }
+    footer button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 12px 18px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .modal-bg {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 10px;
+      width: 500px;
+      max-width: 95%;
+      box-shadow: var(--shadow);
+    }
+    .modal h3 {
+        margin-top: 0;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 10px;
+        margin-bottom: 15px;
+    }
+    .modal label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    .modal input, .modal select {
+      width: calc(100% - 20px);
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-family: inherit;
+    }
+    .modal .actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 20px;
+      gap: 10px;
+    }
+    .modal .actions button {
+      padding: 8px 14px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    #batalBtn {
+        background: #ccc;
+        color: var(--text-color);
+    }
+    #simpanBtn {
+        background: #4CAF50;
+        color: white;
+    }
+    .bukti-modal img {
+      max-width: 100%;
+      border-radius: 6px;
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <button id="menuToggle">☰</button>
+  <h1 id="mainTitle">Catatan Pinjaman</h1>
+  <span id="saldoRingkas">Saldo: Rp 0</span>
+</header>
+
+<div class="menu-overlay" id="menuOverlay"></div>
+
+<nav class="hamburger-menu" id="hamburgerMenu">
+    <div class="menu-header">Menu</div>
+    <ul class="menu-list">
+        <li class="user-info">
+            <span id="loggedInUserName"></span>
+            <small>Email: <span id="loggedInUserEmail"></span></small>
+            <small style="display:none">ID: <span id="loggedInUserId"></span></small>
+        </li>
+        <li>
+            <label for="switchAkun" style="font-weight:600;">Tipe Akun:</label>
+            <select id="switchAkun" style="width:100%;padding:8px;border-radius:5px;border:1px solid #ccc;margin-top:5px;">
+                <option value="peminjam">Pemberi Pinjaman</option>
+                <option value="penerima">Penerima Pinjaman</option>
+            </select>
+        </li>
+        <ul id="friendsList" style="list-style:none;padding:0;margin:0;"></ul>
+        <li>
+            <button id="tambahNasabahBtn" style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;">Tambahkan Nasabah</button>
+        </li>
+        <li><button id="logoutBtn">Logout</button></li>
+    </ul>
+</nav>
+
+<main>
+  <div class="column" id="keluar">
+    <h2>Uang dipinjamkan</h2>
+    <div class="list"></div>
+  </div>
+  <div class="column" id="masuk">
+    <h2>Uang dikembalikan</h2>
+    <div class="list"></div>
+  </div>
+</main>
+
+<footer>
+  <div class="total">
+    <span id="totalKeluar">Total dipinjamkan: Rp 0</span>
+    <span id="totalMasuk">Total dikembalikan: Rp 0</span>
+    <strong id="saldo">Saldo (Belum Kembali): Rp 0</strong>
+  </div>
+  <button id="tambahBtn">➕ Tambah</button>
+</footer>
+
+<div class="modal-bg" id="modalForm">
+  <div class="modal">
+    <h3 id="formTitle">Tambah Catatan</h3>
+    <label>Jenis</label>
+    <select id="jenis">
+      <option value="dipinjamkan">Uang dipinjamkan</option>
+      <option value="dikembalikan">Uang dikembalikan</option>
+    </select>
+    <label>Nominal</label>
+    <input type="text" id="nominal" placeholder="Rp 0">
+    
+    <label>Tanggal</label>
+    <input type="date" id="tanggal">
+    <label>Bukti Transfer</label>
+    <input type="file" id="bukti">
+    <div class="actions">
+      <button id="batalBtn">Batal</button>
+      <button id="simpanBtn">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBukti">
+  <div class="modal bukti-modal">
+    <h3>Bukti Transfer</h3>
+    <img id="imgBukti" src="" alt="Bukti Transfer">
+    <div class="actions">
+      <button id="tutupBukti">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalNasabah">
+  <div class="modal">
+    <h3>Tambahkan Nasabah</h3>
+    <p>Masukkan nama dan email untuk memeriksa apakah nasabah terdaftar.</p>
+    <label>Nama</label>
+    <input type="text" id="inputNasabahNama" placeholder="Contoh: Budi">
+    <label>Email</label>
+    <input type="email" id="inputNasabahEmail" placeholder="contoh@email.com">
+    <div class="actions">
+      <button id="batalNasabahBtn">Batal</button>
+      <button id="simpanNasabahBtn">Konfirmasi</button>
+    </div>
+  </div>
+</div>
+
+<script>
+    const SUPABASE_URL = 'https://wfjxvaybfdxhycbrxufw.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indmanh2YXliZmR4aHljYnJ4dWZ3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NDgwODM4NSwiZXhwIjoyMDcwMzg0Mzg1fQ.tTupZwezG2GIOSfOUwd7yP7WWn0ENL91Qb2ZAqGzEQQ';
+    
+    
+const { createClient } = supabase;
+const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const tambahBtn = document.getElementById('tambahBtn');
+const modalForm = document.getElementById('modalForm');
+const batalBtn = document.getElementById('batalBtn');
+const simpanBtn = document.getElementById('simpanBtn');
+const jenis = document.getElementById('jenis');
+const nominal = document.getElementById('nominal');
+
+const tanggal = document.getElementById('tanggal');
+const bukti = document.getElementById('bukti');
+const listMasuk = document.querySelector('#masuk .list');
+const listKeluar = document.querySelector('#keluar .list');
+const totalMasuk = document.getElementById('totalMasuk');
+const totalKeluar = document.getElementById('totalKeluar');
+const saldoEl = document.getElementById('saldo');
+const saldoRingkas = document.getElementById('saldoRingkas');
+const modalBukti = document.getElementById('modalBukti');
+const imgBukti = document.getElementById('imgBukti');
+const tutupBukti = document.getElementById('tutupBukti');
+const menuToggle = document.getElementById('menuToggle');
+const hamburgerMenu = document.getElementById('hamburgerMenu');
+const menuOverlay = document.getElementById('menuOverlay');
+const loggedInUserName = document.getElementById('loggedInUserName');
+const loggedInUserEmail = document.getElementById('loggedInUserEmail');
+const loggedInUserId = document.getElementById('loggedInUserId');
+const mainTitle = document.getElementById('mainTitle');
+
+const logoutBtn = document.getElementById('logoutBtn');
+const tambahNasabahBtn = document.getElementById('tambahNasabahBtn');
+const modalNasabah = document.getElementById('modalNasabah');
+const inputNasabahNama = document.getElementById('inputNasabahNama');
+const inputNasabahEmail = document.getElementById('inputNasabahEmail');
+const batalNasabahBtn = document.getElementById('batalNasabahBtn');
+const simpanNasabahBtn = document.getElementById('simpanNasabahBtn');
+const switchAkun = document.getElementById('switchAkun');
+
+// New elements
+const friendsList = document.getElementById('friendsList');
+
+let currentUserId = null;
+let allLoanData = [];
+let userProfile = null;
+let selectedFriendId = null;
+let selectedFriendName = null;
+
+// Debug log collector
+function debugLog(msg, data) {
+    const time = new Date().toLocaleTimeString();
+    console.log(`[${time}] ${msg}`, data || '');
+}
+
+function formatRupiah(angka) {
+    if (angka === null || angka === undefined) return 'Rp 0';
+    let number_string = angka.toString().replace(/[^,\d]/g, '');
+    let split = number_string.split(',');
+    let sisa = split[0].length % 3;
+    let rupiah = split[0].substr(0, sisa);
+    let ribuan = split[0].substr(sisa).match(/\d{3}/gi);
+    if (ribuan) {
+        let separator = sisa ? '.' : '';
+        rupiah += separator + ribuan.join('.');
+    }
+    rupiah = split[1] !== undefined ? rupiah + ',' + split[1] : rupiah;
+    return 'Rp ' + rupiah;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) {
+        window.location.href = 'index.html';
+        return;
+    }
+    currentUserId = user.id;
+    debugLog("✅ User login", currentUserId);
+
+    const { data: profileData, error: profileError } = await supabaseClient
+        .from('profiles')
+        .select('email, nama, tipe_akun')
+        .eq('id', currentUserId)
+        .single();
+
+    if (profileError) {
+        console.error("Gagal mengambil data profil:", profileError);
+        loggedInUserName.textContent = user.email;
+    } else {
+        userProfile = profileData;
+        loggedInUserName.textContent = profileData.nama || profileData.email;
+        loggedInUserEmail.textContent = profileData.email;
+        switchAkun.value = userProfile.tipe_akun;
+        updateThemeAndLabels(userProfile.tipe_akun);
+    }
+
+    loggedInUserId.textContent = currentUserId;
+    fetchData();
+    await loadNasabahList();
+
+    if (menuToggle && hamburgerMenu && menuOverlay) {
+        menuToggle.onclick = () => {
+            hamburgerMenu.classList.toggle('open');
+            menuOverlay.style.display = hamburgerMenu.classList.contains('open') ? 'block' : 'none';
+        };
+        menuOverlay.onclick = () => {
+            hamburgerMenu.classList.remove('open');
+            menuOverlay.style.display = 'none';
+        };
+    } else {
+        console.error("Salah satu elemen hamburger menu tidak ditemukan.");
+    }
+});
+
+function updateThemeAndLabels(tipeAkun) {
+    if (tipeAkun === 'penerima') {
+        document.body.classList.add('penerima-theme');
+        document.querySelector('#keluar h2').textContent = 'Uang diterima';
+        document.querySelector('#masuk h2').textContent = 'Uang yang dikembalikan';
+    } else {
+        document.body.classList.remove('penerima-theme');
+        document.querySelector('#keluar h2').textContent = 'Uang dipinjamkan';
+        document.querySelector('#masuk h2').textContent = 'Uang dikembalikan';
+    }
+}
+
+switchAkun.onchange = async (e) => {
+    const newTipeAkun = e.target.value;
+    const { error } = await supabaseClient
+        .from('profiles')
+        .update({ tipe_akun: newTipeAkun })
+        .eq('id', currentUserId);
+    if (!error) {
+        userProfile.tipe_akun = newTipeAkun;
+        updateThemeAndLabels(newTipeAkun);
+        fetchData();
+    } else {
+        alert('Gagal mengganti tipe akun: ' + error.message);
+    }
+};
+
+logoutBtn.onclick = async () => {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+        debugLog("❌ Error logout", error);
+        alert('Gagal logout: ' + error.message);
+    } else {
+        debugLog("✅ User logout sukses");
+        // Tambahkan jeda singkat sebelum redirect untuk menghindari race condition
+        setTimeout(() => {
+            window.location.href = "index.html";
+        }, 500); // Jeda 500ms (0.5 detik)
+    }
+};
+
+// Tambahkan event listener untuk tombol tambah catatan
+tambahBtn.onclick = () => {
+    modalForm.style.display = 'flex';
+    nominal.value = '';
+    tanggal.value = '';
+    bukti.value = '';
+    // Do not reset selectedFriendId or selectedFriendName here.
+    // They should persist until a new friend is selected or the main view is chosen.
+    // mainTitle.textContent = 'Catatan Pinjaman'; // Keep the selected friend's name in title
+};
+
+batalBtn.onclick = () => modalForm.style.display = 'none';
+modalForm.onclick = (e) => {
+    if (e.target === modalForm) modalForm.style.display = 'none';
+}
+tutupBukti.onclick = () => modalBukti.style.display = 'none';
+modalBukti.onclick = (e) => {
+    if (e.target === modalBukti) modalBukti.style.display = 'none';
+}
+
+// --- KODE UNTUK MODAL TAMBAH/CARI NASABAH ---
+tambahNasabahBtn.onclick = () => {
+    modalNasabah.style.display = 'flex';
+    inputNasabahNama.value = '';
+    inputNasabahEmail.value = '';
+    hamburgerMenu.classList.remove('open');
+    menuOverlay.style.display = 'none';
+};
+batalNasabahBtn.onclick = () => modalNasabah.style.display = 'none';
+modalNasabah.onclick = (e) => {
+    if (e.target === modalNasabah) modalNasabah.style.display = 'none';
+};
+
+// Simpan nasabah
+simpanNasabahBtn.onclick = async () => {
+    const nama = inputNasabahNama.value.trim();
+    const email = inputNasabahEmail.value.trim();
+    if (!nama || !email) {
+        return alert('Nama dan email harus diisi.');
+    }
+
+    const { data: profileData, error } = await supabaseClient
+        .from('profiles')
+        .select('id, nama, email')
+        .ilike('nama', nama)
+        .ilike('email', email)
+        .maybeSingle();
+
+    modalNasabah.style.display = 'none';
+    inputNasabahNama.value = '';
+    inputNasabahEmail.value = '';
+
+    if (error) {
+        alert('❌ Terjadi kesalahan: ' + error.message);
+        debugLog("❌ Error cari nasabah", error);
+        return;
+    }
+
+    if (profileData) {
+        const { error: insertError } = await supabaseClient
+            .from('user_nasabah')
+            .insert([{
+                user_id: currentUserId,
+                nasabah_id: profileData.id
+            }]);
+
+        if (insertError) {
+            debugLog("⚠️ Gagal simpan nasabah", insertError);
+            alert('⚠️ Nasabah sudah ada atau gagal disimpan.');
+        } else {
+            debugLog("✅ Nasabah berhasil ditambahkan", profileData);
+        }
+
+        loadNasabahList();
+    } else {
+        alert(`ℹ️ Nasabah dengan nama "${nama}" dan email "${email}" tidak ditemukan.`);
+    }
+};
+
+function fetchDataByFriend(friendId, friendName) {
+    selectedFriendId = friendId;
+    selectedFriendName = friendName;
+    mainTitle.textContent = `Pinjaman dengan ${friendName}`;
+    fetchData();
+    hamburgerMenu.classList.remove('open');
+    menuOverlay.style.display = 'none';
+    
+    // Highlight the selected friend in the sidebar
+    const friendItems = document.querySelectorAll('.menu-list .found-nasabah');
+    friendItems.forEach(item => {
+        item.classList.remove('selected');
+    });
+    // Find the specific item and add the 'selected' class
+    const selectedItem = Array.from(friendItems).find(item => item.textContent.includes(friendName));
+    if (selectedItem) {
+        selectedItem.classList.add('selected');
+    }
+}
+
+async function fetchData() {
+    if (!currentUserId || !userProfile) {
+        console.warn("User ID atau Profil belum tersedia.");
+        return;
+    }
+
+    let query = supabaseClient.from('pinjaman').select('*');
+
+    if (selectedFriendId) {
+        query = query.or(`and(peminjam_user_id.eq.${currentUserId},penerima_user_id.eq.${selectedFriendId}),and(penerima_user_id.eq.${currentUserId},peminjam_user_id.eq.${selectedFriendId})`);
+    } else {
+        query = query.or(`peminjam_user_id.eq.${currentUserId},penerima_user_id.eq.${currentUserId}`);
+    }
+
+    const { data, error } = await query.order('tanggal_pinjam', {
+        ascending: false
+    });
+
+    if (error) {
+        alert('Error saat mengambil data: ' + error.message);
+        console.error('Error fetching data:', error);
+        return;
+    }
+
+    allLoanData = data;
+    let filteredDataKeluar, filteredDataMasuk;
+
+    if (userProfile.tipe_akun === 'peminjam') {
+        filteredDataKeluar = allLoanData.filter(item => item.peminjam_user_id === currentUserId && item.jenis === 'dipinjamkan');
+        filteredDataMasuk = allLoanData.filter(item => item.penerima_user_id === currentUserId && item.jenis === 'dikembalikan');
+    } else {
+        filteredDataKeluar = allLoanData.filter(item => item.penerima_user_id === currentUserId && item.jenis === 'dipinjamkan');
+        filteredDataMasuk = allLoanData.filter(item => item.peminjam_user_id === currentUserId && item.jenis === 'dikembalikan');
+    }
+
+    const h2Keluar = document.querySelector('#keluar h2');
+    const h2Masuk = document.querySelector('#masuk h2');
+
+    h2Keluar.textContent = userProfile.tipe_akun === 'peminjam' ? 'Uang dipinjamkan' : 'Uang diterima';
+    h2Masuk.textContent = userProfile.tipe_akun === 'peminjam' ? 'Uang dikembalikan' : 'Uang yang dikembalikan';
+
+    renderList(listKeluar, filteredDataKeluar);
+    renderList(listMasuk, filteredDataMasuk);
+    updateTotals(filteredDataKeluar, filteredDataMasuk);
+}
+
+simpanBtn.onclick = async () => {
+    const jenisPinjaman = jenis.value;
+    const nominalValue = parseInt(nominal.value.replace(/[^0-9]/g, '')) || 0;
+    const tgl = tanggal.value;
+    const file = bukti.files[0];
+    
+    // Ensure a friend is selected if adding a new record.
+    if (!selectedFriendId) {
+        alert('Silakan pilih nasabah dari daftar atau tambahkan nasabah baru terlebih dahulu.');
+        return;
+    }
+
+    let peminjamId = null;
+    let penerimaId = null;
+
+    if (userProfile.tipe_akun === 'peminjam') {
+        if (jenisPinjaman === 'dipinjamkan') {
+            peminjamId = currentUserId;
+            penerimaId = selectedFriendId;
+        } else {
+            penerimaId = currentUserId;
+            peminjamId = selectedFriendId;
+        }
+    } else {
+        if (jenisPinjaman === 'dipinjamkan') {
+            penerimaId = currentUserId;
+            peminjamId = selectedFriendId;
+        } else {
+            peminjamId = currentUserId;
+            penerimaId = selectedFriendId;
+        }
+    }
+
+    let bukti_url = null;
+    if (file) {
+        const fileName = `${currentUserId}/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabaseClient.storage
+            .from('uploads')
+            .upload(fileName, file);
+        if (uploadError) {
+            alert('❌ Gagal mengunggah gambar: ' + uploadError.message);
+            console.error('Upload Error:', uploadError);
+            return;
+        }
+        const { data: publicUrlData } = supabaseClient.storage
+            .from('uploads')
+            .getPublicUrl(fileName);
+        bukti_url = publicUrlData.publicUrl;
+    }
+
+    const { error: insertError } = await supabaseClient
+        .from('pinjaman')
+        .insert([{
+            peminjam_user_id: peminjamId,
+            penerima_user_id: penerimaId,
+            jumlah: nominalValue,
+            tanggal_pinjam: tgl,
+            jenis: jenisPinjaman,
+            bukti_url: bukti_url,
+            nama_nasabah: selectedFriendName // Use selectedFriendName
+        }]);
+
+    if (insertError) {
+        alert('❌ Gagal menyimpan data: ' + insertError.message);
+        console.error('Insert Error:', insertError);
+    } else {
+        modalForm.style.display = 'none';
+        fetchData();
+    }
+};
+
+async function loadNasabahList() {
+    if (!currentUserId) {
+        debugLog("⚠️ currentUserId kosong, tidak bisa load nasabah");
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from("user_nasabah")
+        .select(`
+            id,
+            nasabah_id,
+            profiles:nasabah_id (id, nama, email)
+        `)
+        .eq("user_id", currentUserId);
+
+    console.log("🔎 Query user_nasabah result:", data, "Error:", error);
+
+    friendsList.innerHTML = "";
+
+    if (error) {
+        debugLog("❌ Gagal load nasabah", error);
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        debugLog("ℹ️ Tidak ada nasabah untuk user ini.");
+        // Ganti ini agar lebih jelas jika tidak ada nasabah
+        friendsList.innerHTML = '<li style="padding: 1rem 1.5rem; color: var(--light-text-color);">Belum ada nasabah yang ditambahkan.</li>';
+        return;
+    }
+
+    data.forEach((item) => {
+        if (item.profiles) {
+            const li = document.createElement("li");
+            li.className = "found-nasabah";
+            li.textContent = `👤 ${item.profiles.nama} (${item.profiles.email})`;
+            li.onclick = () =>
+                fetchDataByFriend(item.profiles.id, item.profiles.nama);
+            friendsList.appendChild(li);
+        }
+    });
+
+    debugLog("✅ Daftar nasabah berhasil dimuat", data);
+}
+
+window.markAsReturned = async (id) => {
+    if (!confirm('Apakah Anda yakin ingin menandai pinjaman ini sudah dikembalikan?')) {
+        return;
+    }
+
+    const { error } = await supabaseClient
+        .from('pinjaman')
+        .update({
+            jenis: 'dikembalikan'
+        })
+        .eq('id', id);
+
+    if (error) {
+        alert('❌ Gagal menandai sebagai dikembalikan: ' + error.message);
+        console.error('Update Loan Error:', error);
+    } else {
+        alert('✅ Pinjaman berhasil ditandai sebagai dikembalikan!');
+        fetchData();
+    }
+};
+
+async function hapusData(id, bukti_url) {
+    if (!confirm('Apakah Anda yakin ingin menghapus catatan ini?')) {
+        return;
+    }
+    if (bukti_url && bukti_url !== 'null' && bukti_url !== 'undefined') {
+        const pathSegments = bukti_url.split('/uploads/')[1];
+        if (pathSegments) {
+            const { error: storageError } = await supabaseClient.storage
+                .from('uploads')
+                .remove([pathSegments]);
+            if (storageError) {
+                alert('❌ Error saat menghapus gambar dari storage: ' + storageError.message);
+                console.error('Storage Delete Error:', storageError);
+            }
+        }
+    }
+    const { error: deleteError } = await supabaseClient
+        .from('pinjaman')
+        .delete()
+        .eq('id', id);
+    if (deleteError) {
+        alert('❌ Gagal menghapus data: ' + deleteError.message);
+        console.error('Delete Error:', deleteError);
+    } else {
+        fetchData();
+    }
+}
+
+function renderList(container, data) {
+    container.innerHTML = '';
+    if (data.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: var(--light-text-color);">Belum ada catatan.</p>';
+        return;
+    }
+    data.forEach((d) => {
+        const div = document.createElement('div');
+        div.className = 'item';
+
+        let lunasiButton = '';
+        if (userProfile.tipe_akun === 'peminjam' && d.peminjam_user_id === currentUserId && d.jenis === 'dipinjamkan') {
+            lunasiButton = `<button style="background: #4CAF50;" onclick="markAsReturned('${d.id}')">Lunasi</button>`;
+        } else if (userProfile.tipe_akun === 'penerima' && d.penerima_user_id === currentUserId && d.jenis === 'dipinjamkan') {
+            lunasiButton = `<button style="background: #4CAF50;" onclick="markAsReturned('${d.id}')">Lunasi</button>`;
+        }
+
+        div.innerHTML = `
+            <div class="item-info">
+                <span>${formatRupiah(d.jumlah)}<br><small>${d.tanggal_pinjam}</small><br><small>Nasabah: ${d.nama_nasabah}</small></span>
+            </div>
+            <div>
+                ${lunasiButton}
+                ${d.bukti_url ? `<button onclick="lihatBukti('${d.bukti_url}')">Lihat Bukti</button>` : ''}
+                <button style="background-color: #f44336;" onclick="hapusData('${d.id}', '${d.bukti_url}')">Hapus</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function updateTotals(dataKeluar, dataMasuk) {
+    const totalK = dataKeluar.reduce((a, b) => a + b.jumlah, 0);
+    const totalM = dataMasuk.reduce((a, b) => a + b.jumlah, 0);
+    const saldo = totalK - totalM;
+
+    const labelKeluar = userProfile.tipe_akun === 'peminjam' ? 'Dipinjamkan' : 'Diterima';
+    const labelMasuk = userProfile.tipe_akun === 'peminjam' ? 'Dikembalikan' : 'Dikembalikan';
+
+    totalKeluar.textContent = `Total ${labelKeluar}: ${formatRupiah(totalK)}`;
+    totalMasuk.textContent = `Total ${labelMasuk}: ${formatRupiah(totalM)}`;
+    saldoEl.textContent = `Saldo (Belum Kembali): ${formatRupiah(saldo)}`;
+    saldoRingkas.textContent = `Saldo: ${formatRupiah(saldo)}`;
+}
+
+window.lihatBukti = (src) => {
+    imgBukti.src = src;
+    modalBukti.style.display = 'flex';
+};
+window.hapusData = hapusData;
+</script>
+</body>
+</html>
