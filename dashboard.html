@@ -301,6 +301,12 @@
       display: block;
       margin: 0 auto;
     }
+    
+    .found-nasabah.selected {
+  background-color: #ffeadb; /* Warna oranye muda */
+  border: 2px solid var(--primary-color-penerima); /* Border oranye */
+  border-left: 5px solid var(--primary-color-penerima); /* Garis tebal di kiri */
+}
   </style>
 </head>
 <body>
@@ -332,13 +338,6 @@
         <li>
             <button id="tambahNasabahBtn" style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;">Tambahkan Nasabah</button>
         </li>
-        <li>
-       <button onclick="window.location.href='settings.html';" 
-  style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;">
-  Pengaturan
-</button>
-	
-</li>
         <li><button id="logoutBtn">Logout</button></li>
     </ul>
 </nav>
@@ -507,7 +506,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         loggedInUserEmail.textContent = profileData.email;
         switchAkun.value = userProfile.tipe_akun;
         updateThemeAndLabels(userProfile.tipe_akun);
-        toggleTambahNasabahButton(userProfile.tipe_akun); // Tambahkan baris ini
     }
 
     loggedInUserId.textContent = currentUserId;
@@ -538,20 +536,7 @@ function updateThemeAndLabels(tipeAkun) {
         document.querySelector('#keluar h2').textContent = 'Uang dipinjamkan';
         document.querySelector('#masuk h2').textContent = 'Uang dikembalikan';
     }
-    toggleTambahNasabahButton(tipeAkun); // Tambahkan baris ini
 }
-
-// Fungsi baru untuk mengontrol tampilan tombol "Tambah Nasabah"
-function toggleTambahNasabahButton(tipeAkun) {
-    if (tambahNasabahBtn) {
-        if (tipeAkun === 'peminjam') {
-            tambahNasabahBtn.style.display = 'block'; // Tampilkan untuk peminjam
-        } else {
-            tambahNasabahBtn.style.display = 'none'; // Sembunyikan untuk penerima
-        }
-    }
-}
-
 
 switchAkun.onchange = async (e) => {
     const newTipeAkun = e.target.value;
@@ -582,15 +567,17 @@ logoutBtn.onclick = async () => {
     }
 };
 
-// Tambahkan event listener untuk tombol tambah catatan
+// Modifikasi fungsi tambahBtn.onclick
 tambahBtn.onclick = () => {
+    if (!selectedFriendId) {
+        alert('Silakan pilih nasabah dari daftar terlebih dahulu sebelum menambahkan catatan.');
+        return;
+    }
     modalForm.style.display = 'flex';
     nominal.value = '';
     tanggal.value = '';
     bukti.value = '';
-    selectedFriendId = null;
-    selectedFriendName = null;
-    mainTitle.textContent = 'Catatan Pinjaman';
+    mainTitle.textContent = `Tambah catatan untuk ${selectedFriendName}`;
 };
 
 batalBtn.onclick = () => modalForm.style.display = 'none';
@@ -661,10 +648,21 @@ simpanNasabahBtn.onclick = async () => {
     }
 };
 
-function fetchDataByFriend(friendId, friendName) {
+function fetchDataByFriend(friendId, friendName, element) {
     selectedFriendId = friendId;
     selectedFriendName = friendName;
     mainTitle.textContent = `Pinjaman dengan ${friendName}`;
+    
+    // Hapus kelas 'selected' dari semua item
+    document.querySelectorAll('#friendsList .found-nasabah').forEach(li => {
+        li.classList.remove('selected');
+    });
+
+    // Tambahkan kelas 'selected' ke item yang diklik
+    if (element) {
+      element.classList.add('selected');
+    }
+
     fetchData();
     hamburgerMenu.classList.remove('open');
     menuOverlay.style.display = 'none';
@@ -716,38 +714,40 @@ async function fetchData() {
     updateTotals(filteredDataKeluar, filteredDataMasuk);
 }
 
+// Modifikasi fungsi simpanBtn.onclick
 simpanBtn.onclick = async () => {
     const jenisPinjaman = jenis.value;
     const nominalValue = parseInt(nominal.value.replace(/[^0-9]/g, '')) || 0;
     const tgl = tanggal.value;
     const file = bukti.files[0];
     
-    // Ensure a friend is selected if adding a new record.
-    if (!selectedFriendId) {
-        alert('Silakan pilih nasabah dari daftar atau tambahkan nasabah baru terlebih dahulu.');
-        return;
-    }
 
-    let peminjamId = null;
-    let penerimaId = null;
+if (!selectedFriendId) {
+    alert('Silakan pilih nasabah dari daftar atau tambahkan nasabah baru terlebih dahulu.');
+    return;
+}
 
-    if (userProfile.tipe_akun === 'peminjam') {
-        if (jenisPinjaman === 'dipinjamkan') {
-            peminjamId = currentUserId;
-            penerimaId = selectedFriendId;
-        } else {
-            penerimaId = currentUserId;
-            peminjamId = selectedFriendId;
-        }
-    } else {
-        if (jenisPinjaman === 'dipinjamkan') {
-            penerimaId = currentUserId;
-            peminjamId = selectedFriendId;
-        } else {
-            peminjamId = currentUserId;
-            penerimaId = selectedFriendId;
-        }
+// Logika untuk menentukan peminjamId dan penerimaId
+let peminjamId = null;
+let penerimaId = null;
+
+if (userProfile.tipe_akun === 'peminjam') {
+    if (jenisPinjaman === 'dipinjamkan') {
+        peminjamId = currentUserId;
+        penerimaId = selectedFriendId;
+    } else { // jenis === 'dikembalikan'
+        penerimaId = currentUserId;
+        peminjamId = selectedFriendId;
     }
+} else { // userProfile.tipe_akun === 'penerima'
+    if (jenisPinjaman === 'dipinjamkan') {
+        penerimaId = currentUserId;
+        peminjamId = selectedFriendId;
+    } else { // jenis === 'dikembalikan'
+        peminjamId = currentUserId;
+        penerimaId = selectedFriendId;
+    }
+}
 
     let bukti_url = null;
     if (file) {
@@ -775,7 +775,7 @@ simpanBtn.onclick = async () => {
             tanggal_pinjam: tgl,
             jenis: jenisPinjaman,
             bukti_url: bukti_url,
-            nama_nasabah: selectedFriendName // Use selectedFriendName
+            nama_nasabah: selectedFriendName // Gunakan selectedFriendName
         }]);
 
     if (insertError) {
@@ -837,14 +837,18 @@ async function loadNasabahList() {
         return;
     }
 
-    uniqueFriends.forEach((profile) => {
-        const li = document.createElement("li");
-        li.className = "found-nasabah";
-        li.textContent = `👤 ${profile.nama} (${profile.email})`;
-        li.onclick = () =>
-            fetchDataByFriend(profile.id, profile.nama);
-        friendsList.appendChild(li);
-    });
+    // ... di dalam fungsi loadNasabahList()
+
+uniqueFriends.forEach((profile) => {
+    const li = document.createElement("li");
+    li.className = "found-nasabah";
+    li.textContent = `👤 ${profile.nama} (${profile.email})`;
+    li.onclick = (e) =>
+        fetchDataByFriend(profile.id, profile.nama, e.currentTarget); // Mengirim elemen yang diklik
+    friendsList.appendChild(li);
+});
+
+// ...
 
     debugLog("✅ Daftar nasabah berhasil dimuat", uniqueFriends.size);
 }
