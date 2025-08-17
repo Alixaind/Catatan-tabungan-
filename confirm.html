@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verifikasi Akun</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #f4f4f4; text-align: center; }
+        .container { padding: 2rem; background-color: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2cce7d; }
+        p { color: #555; }
+        .button { display: inline-block; padding: 10px 20px; margin-top: 1rem; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 5px; }
+        .button:hover { background-color: #2563eb; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <div class="container">
+        <div id="message">
+            <h1>Memverifikasi...</h1>
+            <p>Harap tunggu sebentar, kami sedang memproses verifikasi akun Anda.</p>
+        </div>
+    </div>
+
+    <script>
+        // Ganti dengan URL dan Anon Key Supabase proyekmu
+        const SUPABASE_URL = 'https://URL_PROYEK_KAMU.supabase.co';
+        const SUPABASE_ANON_KEY = 'KEY_ANON_PROYEK_KAMU';
+
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const messageDiv = document.getElementById('message');
+
+        // Supabase secara otomatis mendeteksi access_token dari URL
+        // dan mencoba melakukan sign-in saat halaman dimuat.
+        // Kita cukup memantau perubahan status autentikasi.
+        supabase.auth.onAuthStateChange((event, session) => {
+            // Event 'SIGNED_IN' akan terpicu jika verifikasi dari URL berhasil
+            if (event === 'SIGNED_IN') {
+                messageDiv.innerHTML = `
+                    <h1>✅ Akun Telah Diverifikasi!</h1>
+                    <p>Terima kasih telah mengkonfirmasi email Anda. Silakan login untuk melanjutkan.</p>
+                    <a href="/index.html" class="button">Login</a>
+                `;
+            } else if (event === 'SIGNED_OUT') {
+                // Kondisi ini bisa diabaikan atau ditangani jika perlu
+            }
+        });
+
+    </script>
+
+</body>
+</html>
