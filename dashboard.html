@@ -338,6 +338,9 @@
         <li>
             <button id="tambahNasabahBtn" style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;">Tambahkan Nasabah</button>
         </li>
+        <li>
+        	<button onclick="window.location.href='settings.html';"style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;"> Pengaturan</button>
+        	</li>
         <li><button id="logoutBtn">Logout</button></li>
     </ul>
 </nav>
@@ -375,7 +378,7 @@
     
     <label>Tanggal</label>
     <input type="date" id="tanggal">
-    <label>Bukti Transfer</label>
+    <label>Bukti Transfer</labe>
     <input type="file" id="bukti">
     <div class="actions">
       <button id="batalBtn">Batal</button>
@@ -390,6 +393,30 @@
     <img id="imgBukti" src="" alt="Bukti Transfer">
     <div class="actions">
       <button id="tutupBukti">Tutup</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modalLunasi">
+  <div class="modal">
+    <h3>Lunasi Pinjaman</h3>
+    <p>Data pinjaman asli:</p>
+    <label>Nominal</label>
+    <input type="text" id="nominalAsli" readonly>
+    <label>Tanggal Pinjam</label>
+    <input type="date" id="tanggalPinjamAsli" readonly>
+
+    <hr>
+    
+    <p>Masukkan data pengembalian:</p>
+    <label>Tanggal Dikembalikan</label>
+    <input type="date" id="tanggalDikembalikan">
+    <label>Bukti Transfer Kembali</label>
+    <input type="file" id="buktiKembali">
+
+    <div class="actions">
+      <button id="batalLunasiBtn">Batal</button>
+      <button id="simpanLunasiBtn">Simpan</button>
     </div>
   </div>
 </div>
@@ -452,7 +479,14 @@ const batalNasabahBtn = document.getElementById('batalNasabahBtn');
 const simpanNasabahBtn = document.getElementById('simpanNasabahBtn');
 const switchAkun = document.getElementById('switchAkun');
 
-// New elements
+// New elements for the "Lunasi" modal
+const modalLunasi = document.getElementById('modalLunasi');
+const nominalAsli = document.getElementById('nominalAsli');
+const tanggalPinjamAsli = document.getElementById('tanggalPinjamAsli');
+const tanggalDikembalikan = document.getElementById('tanggalDikembalikan');
+const buktiKembali = document.getElementById('buktiKembali');
+const batalLunasiBtn = document.getElementById('batalLunasiBtn');
+const simpanLunasiBtn = document.getElementById('simpanLunasiBtn');
 const friendsList = document.getElementById('friendsList');
 
 let currentUserId = null;
@@ -460,6 +494,8 @@ let allLoanData = [];
 let userProfile = null;
 let selectedFriendId = null;
 let selectedFriendName = null;
+
+let loanToRepayId = null; // Variable untuk menyimpan ID pinjaman yang akan dilunasi
 
 // Debug log collector
 function debugLog(msg, data) {
@@ -506,6 +542,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loggedInUserEmail.textContent = profileData.email;
         switchAkun.value = userProfile.tipe_akun;
         updateThemeAndLabels(userProfile.tipe_akun);
+        updateUIBasedOnAccountType(userProfile.tipe_akun); // Call this on load
     }
 
     loggedInUserId.textContent = currentUserId;
@@ -538,6 +575,11 @@ function updateThemeAndLabels(tipeAkun) {
     }
 }
 
+function updateUIBasedOnAccountType(tipeAkun) {
+    const isPeminjam = (tipeAkun === 'peminjam');
+    tambahNasabahBtn.style.display = isPeminjam ? 'block' : 'none';
+}
+
 switchAkun.onchange = async (e) => {
     const newTipeAkun = e.target.value;
     const { error } = await supabaseClient
@@ -547,6 +589,7 @@ switchAkun.onchange = async (e) => {
     if (!error) {
         userProfile.tipe_akun = newTipeAkun;
         updateThemeAndLabels(newTipeAkun);
+        updateUIBasedOnAccountType(newTipeAkun); // Update UI elements
         fetchData();
     } else {
         alert('Gagal mengganti tipe akun: ' + error.message);
@@ -560,14 +603,12 @@ logoutBtn.onclick = async () => {
         alert('Gagal logout: ' + error.message);
     } else {
         debugLog("✅ User logout sukses");
-        // Tambahkan jeda singkat sebelum redirect untuk menghindari race condition
         setTimeout(() => {
             window.location.href = "index.html";
-        }, 500); // Jeda 500ms (0.5 detik)
+        }, 500);
     }
 };
 
-// Modifikasi fungsi tambahBtn.onclick
 tambahBtn.onclick = () => {
     if (!selectedFriendId) {
         alert('Silakan pilih nasabah dari daftar terlebih dahulu sebelum menambahkan catatan.');
@@ -602,7 +643,6 @@ modalNasabah.onclick = (e) => {
     if (e.target === modalNasabah) modalNasabah.style.display = 'none';
 };
 
-// Simpan nasabah
 simpanNasabahBtn.onclick = async () => {
     const nama = inputNasabahNama.value.trim();
     const email = inputNasabahEmail.value.trim();
@@ -653,12 +693,10 @@ function fetchDataByFriend(friendId, friendName, element) {
     selectedFriendName = friendName;
     mainTitle.textContent = `Pinjaman dengan ${friendName}`;
     
-    // Hapus kelas 'selected' dari semua item
     document.querySelectorAll('#friendsList .found-nasabah').forEach(li => {
         li.classList.remove('selected');
     });
 
-    // Tambahkan kelas 'selected' ke item yang diklik
     if (element) {
       element.classList.add('selected');
     }
@@ -697,10 +735,10 @@ async function fetchData() {
 
     if (userProfile.tipe_akun === 'peminjam') {
         filteredDataKeluar = allLoanData.filter(item => item.peminjam_user_id === currentUserId && item.jenis === 'dipinjamkan');
-        filteredDataMasuk = allLoanData.filter(item => item.penerima_user_id === currentUserId && item.jenis === 'dikembalikan');
+        filteredDataMasuk = allLoanData.filter(item => item.peminjam_user_id === currentUserId && item.jenis === 'dikembalikan');
     } else {
         filteredDataKeluar = allLoanData.filter(item => item.penerima_user_id === currentUserId && item.jenis === 'dipinjamkan');
-        filteredDataMasuk = allLoanData.filter(item => item.peminjam_user_id === currentUserId && item.jenis === 'dikembalikan');
+        filteredDataMasuk = allLoanData.filter(item => item.penerima_user_id === currentUserId && item.jenis === 'dikembalikan');
     }
 
     const h2Keluar = document.querySelector('#keluar h2');
@@ -714,7 +752,6 @@ async function fetchData() {
     updateTotals(filteredDataKeluar, filteredDataMasuk);
 }
 
-// Modifikasi fungsi simpanBtn.onclick
 simpanBtn.onclick = async () => {
     const jenisPinjaman = jenis.value;
     const nominalValue = parseInt(nominal.value.replace(/[^0-9]/g, '')) || 0;
@@ -727,7 +764,6 @@ if (!selectedFriendId) {
     return;
 }
 
-// Logika untuk menentukan peminjamId dan penerimaId
 let peminjamId = null;
 let penerimaId = null;
 
@@ -735,15 +771,15 @@ if (userProfile.tipe_akun === 'peminjam') {
     if (jenisPinjaman === 'dipinjamkan') {
         peminjamId = currentUserId;
         penerimaId = selectedFriendId;
-    } else { // jenis === 'dikembalikan'
+    } else {
         penerimaId = currentUserId;
         peminjamId = selectedFriendId;
     }
-} else { // userProfile.tipe_akun === 'penerima'
+} else {
     if (jenisPinjaman === 'dipinjamkan') {
         penerimaId = currentUserId;
         peminjamId = selectedFriendId;
-    } else { // jenis === 'dikembalikan'
+    } else {
         peminjamId = currentUserId;
         penerimaId = selectedFriendId;
     }
@@ -775,7 +811,7 @@ if (userProfile.tipe_akun === 'peminjam') {
             tanggal_pinjam: tgl,
             jenis: jenisPinjaman,
             bukti_url: bukti_url,
-            nama_nasabah: selectedFriendName // Gunakan selectedFriendName
+            nama_nasabah: selectedFriendName
         }]);
 
     if (insertError) {
@@ -793,7 +829,6 @@ async function loadNasabahList() {
         return;
     }
     
-    // Ambil data di mana user_id adalah user saat ini (tipe peminjam)
     const { data: relationsPeminjam, error: errorPeminjam } = await supabaseClient
         .from("user_nasabah")
         .select(`
@@ -806,7 +841,6 @@ async function loadNasabahList() {
         debugLog("❌ Gagal mengambil relasi sebagai peminjam", errorPeminjam);
     }
     
-    // Ambil data di mana nasabah_id adalah user saat ini (tipe penerima)
     const { data: relationsPenerima, error: errorPenerima } = await supabaseClient
         .from("user_nasabah")
         .select(`
@@ -819,7 +853,6 @@ async function loadNasabahList() {
         debugLog("❌ Gagal mengambil relasi sebagai penerima", errorPenerima);
     }
     
-    // Gabungkan hasil dari kedua query
     const allRelations = [...(relationsPeminjam || []), ...(relationsPenerima || [])];
     const uniqueFriends = new Map();
 
@@ -837,57 +870,116 @@ async function loadNasabahList() {
         return;
     }
 
-    // ... di dalam fungsi loadNasabahList()
-
-uniqueFriends.forEach((profile) => {
-    const li = document.createElement("li");
-    li.className = "found-nasabah";
-    li.textContent = `👤 ${profile.nama} (${profile.email})`;
-    li.onclick = (e) =>
-        fetchDataByFriend(profile.id, profile.nama, e.currentTarget); // Mengirim elemen yang diklik
-    friendsList.appendChild(li);
-});
-
-// ...
+    uniqueFriends.forEach((profile) => {
+        const li = document.createElement("li");
+        li.className = "found-nasabah";
+        li.textContent = `👤 ${profile.nama} (${profile.email})`;
+        li.onclick = (e) =>
+            fetchDataByFriend(profile.id, profile.nama, e.currentTarget);
+        friendsList.appendChild(li);
+    });
 
     debugLog("✅ Daftar nasabah berhasil dimuat", uniqueFriends.size);
 }
 
+// FUNGSI MARKASRETURNED SEKARANG MENAMPILKAN MODAL
 window.markAsReturned = async (id) => {
-    if (!confirm('Apakah Anda yakin ingin menandai pinjaman ini sudah dikembalikan?')) {
+    loanToRepayId = id;
+    const loanData = allLoanData.find(item => item.id === id);
+    if (!loanData) {
+        alert("Data pinjaman tidak ditemukan.");
         return;
     }
 
-    const { error } = await supabaseClient
+    nominalAsli.value = formatRupiah(loanData.jumlah);
+    tanggalPinjamAsli.value = loanData.tanggal_pinjam;
+    tanggalDikembalikan.value = new Date().toISOString().slice(0, 10);
+    buktiKembali.value = null;
+
+    modalLunasi.style.display = 'flex';
+};
+
+// SIMPAN DARI MODAL LUNASI
+simpanLunasiBtn.onclick = async () => {
+    if (!loanToRepayId) {
+        alert("Tidak ada pinjaman yang dipilih.");
+        return;
+    }
+
+    const tglKembali = tanggalDikembalikan.value;
+    const file = buktiKembali.files[0];
+
+    if (!tglKembali) {
+        alert('Tanggal pengembalian harus diisi.');
+        return;
+    }
+
+    let bukti_url_kembali = null;
+    if (file) {
+        const fileName = `${currentUserId}/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabaseClient.storage
+            .from('uploads')
+            .upload(fileName, file);
+        if (uploadError) {
+            alert('❌ Gagal mengunggah gambar: ' + uploadError.message);
+            console.error('Upload Error:', uploadError);
+            return;
+        }
+        const { data: publicUrlData } = supabaseClient.storage
+            .from('uploads')
+            .getPublicUrl(fileName);
+        bukti_url_kembali = publicUrlData.publicUrl;
+    }
+
+    const { error: updateError } = await supabaseClient
         .from('pinjaman')
         .update({
-            jenis: 'dikembalikan'
+            jenis: 'dikembalikan',
+            tanggal_dikembalikan: tglKembali,
+            bukti_dikembalikan_url: bukti_url_kembali
         })
-        .eq('id', id);
+        .eq('id', loanToRepayId);
 
-    if (error) {
-        alert('❌ Gagal menandai sebagai dikembalikan: ' + error.message);
-        console.error('Update Loan Error:', error);
+    if (updateError) {
+        alert('❌ Gagal menandai sebagai dikembalikan: ' + updateError.message);
+        console.error('Update Loan Error:', updateError);
     } else {
         alert('✅ Pinjaman berhasil ditandai sebagai dikembalikan!');
+        modalLunasi.style.display = 'none';
         fetchData();
     }
 };
 
-async function hapusData(id, bukti_url) {
+batalLunasiBtn.onclick = () => modalLunasi.style.display = 'none';
+modalLunasi.onclick = (e) => {
+    if (e.target === modalLunasi) modalLunasi.style.display = 'none';
+}
+
+async function hapusData(id, bukti_url, bukti_kembali_url) {
     if (!confirm('Apakah Anda yakin ingin menghapus catatan ini?')) {
         return;
     }
+
+    const filesToDelete = [];
     if (bukti_url && bukti_url !== 'null' && bukti_url !== 'undefined') {
         const pathSegments = bukti_url.split('/uploads/')[1];
         if (pathSegments) {
-            const { error: storageError } = await supabaseClient.storage
-                .from('uploads')
-                .remove([pathSegments]);
-            if (storageError) {
-                alert('❌ Error saat menghapus gambar dari storage: ' + storageError.message);
-                console.error('Storage Delete Error:', storageError);
-            }
+            filesToDelete.push(pathSegments);
+        }
+    }
+    if (bukti_kembali_url && bukti_kembali_url !== 'null' && bukti_kembali_url !== 'undefined') {
+        const pathSegments = bukti_kembali_url.split('/uploads/')[1];
+        if (pathSegments) {
+            filesToDelete.push(pathSegments);
+        }
+    }
+    if (filesToDelete.length > 0) {
+        const { error: storageError } = await supabaseClient.storage
+            .from('uploads')
+            .remove(filesToDelete);
+        if (storageError) {
+            alert('❌ Error saat menghapus gambar dari storage: ' + storageError.message);
+            console.error('Storage Delete Error:', storageError);
         }
     }
     const { error: deleteError } = await supabaseClient
@@ -913,20 +1005,33 @@ function renderList(container, data) {
         div.className = 'item';
 
         let lunasiButton = '';
-        if (userProfile.tipe_akun === 'peminjam' && d.peminjam_user_id === currentUserId && d.jenis === 'dipinjamkan') {
+        if (d.jenis === 'dipinjamkan') {
             lunasiButton = `<button style="background: #4CAF50;" onclick="markAsReturned('${d.id}')">Lunasi</button>`;
-        } else if (userProfile.tipe_akun === 'penerima' && d.penerima_user_id === currentUserId && d.jenis === 'dipinjamkan') {
-            lunasiButton = `<button style="background: #4CAF50;" onclick="markAsReturned('${d.id}')">Lunasi</button>`;
+        }
+        
+        let deleteButton = '';
+        if (userProfile.tipe_akun === 'peminjam') {
+            deleteButton = `<button style="background-color: #f44336;" onclick="hapusData('${d.id}', '${d.bukti_url}', '${d.bukti_dikembalikan_url}')">Hapus</button>`;
+        }
+
+        const tanggalTampil = d.jenis === 'dipinjamkan' ? d.tanggal_pinjam : d.tanggal_dikembalikan;
+        
+        let buktiButtons = '';
+        if (d.bukti_url) {
+             buktiButtons += `<button onclick="lihatBukti('${d.bukti_url}')">Lihat Bukti Pinjam</button>`;
+        }
+        if (d.bukti_dikembalikan_url) {
+            buktiButtons += `<button onclick="lihatBukti('${d.bukti_dikembalikan_url}')">Lihat Bukti Kembali</button>`;
         }
 
         div.innerHTML = `
             <div class="item-info">
-                <span>${formatRupiah(d.jumlah)}<br><small>${d.tanggal_pinjam}</small></span>
+                <span>${formatRupiah(d.jumlah)}<br><small>${tanggalTampil}</small></span>
             </div>
             <div>
-                ${lunasiButton}
-                ${d.bukti_url ? `<button onclick="lihatBukti('${d.bukti_url}')">Lihat Bukti</button>` : ''}
-                <button style="background-color: #f44336;" onclick="hapusData('${d.id}', '${d.bukti_url}')">Hapus</button>
+                ${d.jenis === 'dipinjamkan' ? lunasiButton : ''}
+                ${buktiButtons}
+                ${deleteButton}
             </div>
         `;
         container.appendChild(div);
