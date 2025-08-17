@@ -149,11 +149,6 @@
     .menu-list .found-nasabah:hover {
         background-color: #b2dfdb;
     }
-    /* Style for selected friend */
-    .menu-list .found-nasabah.selected {
-        border: 2px solid var(--primary-color-penerima); /* Orange border */
-        box-shadow: 0 0 8px rgba(255,193,7,0.5); /* Orange shadow */
-    }
 
     main {
       display: flex;
@@ -337,6 +332,13 @@
         <li>
             <button id="tambahNasabahBtn" style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;">Tambahkan Nasabah</button>
         </li>
+        <li>
+       <button onclick="window.location.href='settings.html';" 
+  style="width: 100%; text-align: left; background: none; border: none; color: var(--text-color); font-size: 1rem; font-family: 'Poppins', sans-serif; cursor: pointer; padding: 1rem 1.5rem;">
+  Pengaturan
+</button>
+	
+</li>
         <li><button id="logoutBtn">Logout</button></li>
     </ul>
 </nav>
@@ -505,6 +507,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         loggedInUserEmail.textContent = profileData.email;
         switchAkun.value = userProfile.tipe_akun;
         updateThemeAndLabels(userProfile.tipe_akun);
+        toggleTambahNasabahButton(userProfile.tipe_akun); // Tambahkan baris ini
     }
 
     loggedInUserId.textContent = currentUserId;
@@ -535,7 +538,20 @@ function updateThemeAndLabels(tipeAkun) {
         document.querySelector('#keluar h2').textContent = 'Uang dipinjamkan';
         document.querySelector('#masuk h2').textContent = 'Uang dikembalikan';
     }
+    toggleTambahNasabahButton(tipeAkun); // Tambahkan baris ini
 }
+
+// Fungsi baru untuk mengontrol tampilan tombol "Tambah Nasabah"
+function toggleTambahNasabahButton(tipeAkun) {
+    if (tambahNasabahBtn) {
+        if (tipeAkun === 'peminjam') {
+            tambahNasabahBtn.style.display = 'block'; // Tampilkan untuk peminjam
+        } else {
+            tambahNasabahBtn.style.display = 'none'; // Sembunyikan untuk penerima
+        }
+    }
+}
+
 
 switchAkun.onchange = async (e) => {
     const newTipeAkun = e.target.value;
@@ -572,9 +588,9 @@ tambahBtn.onclick = () => {
     nominal.value = '';
     tanggal.value = '';
     bukti.value = '';
-    // Do not reset selectedFriendId or selectedFriendName here.
-    // They should persist until a new friend is selected or the main view is chosen.
-    // mainTitle.textContent = 'Catatan Pinjaman'; // Keep the selected friend's name in title
+    selectedFriendId = null;
+    selectedFriendName = null;
+    mainTitle.textContent = 'Catatan Pinjaman';
 };
 
 batalBtn.onclick = () => modalForm.style.display = 'none';
@@ -652,17 +668,6 @@ function fetchDataByFriend(friendId, friendName) {
     fetchData();
     hamburgerMenu.classList.remove('open');
     menuOverlay.style.display = 'none';
-    
-    // Highlight the selected friend in the sidebar
-    const friendItems = document.querySelectorAll('.menu-list .found-nasabah');
-    friendItems.forEach(item => {
-        item.classList.remove('selected');
-    });
-    // Find the specific item and add the 'selected' class
-    const selectedItem = Array.from(friendItems).find(item => item.textContent.includes(friendName));
-    if (selectedItem) {
-        selectedItem.classList.add('selected');
-    }
 }
 
 async function fetchData() {
@@ -787,44 +792,61 @@ async function loadNasabahList() {
         debugLog("⚠️ currentUserId kosong, tidak bisa load nasabah");
         return;
     }
-
-    const { data, error } = await supabaseClient
+    
+    // Ambil data di mana user_id adalah user saat ini (tipe peminjam)
+    const { data: relationsPeminjam, error: errorPeminjam } = await supabaseClient
         .from("user_nasabah")
         .select(`
-            id,
             nasabah_id,
             profiles:nasabah_id (id, nama, email)
         `)
         .eq("user_id", currentUserId);
 
-    console.log("🔎 Query user_nasabah result:", data, "Error:", error);
-
-    friendsList.innerHTML = "";
-
-    if (error) {
-        debugLog("❌ Gagal load nasabah", error);
-        return;
+    if (errorPeminjam) {
+        debugLog("❌ Gagal mengambil relasi sebagai peminjam", errorPeminjam);
     }
-
-    if (!data || data.length === 0) {
-        debugLog("ℹ️ Tidak ada nasabah untuk user ini.");
-        // Ganti ini agar lebih jelas jika tidak ada nasabah
-        friendsList.innerHTML = '<li style="padding: 1rem 1.5rem; color: var(--light-text-color);">Belum ada nasabah yang ditambahkan.</li>';
-        return;
+    
+    // Ambil data di mana nasabah_id adalah user saat ini (tipe penerima)
+    const { data: relationsPenerima, error: errorPenerima } = await supabaseClient
+        .from("user_nasabah")
+        .select(`
+            user_id,
+            profiles:user_id (id, nama, email)
+        `)
+        .eq("nasabah_id", currentUserId);
+    
+    if (errorPenerima) {
+        debugLog("❌ Gagal mengambil relasi sebagai penerima", errorPenerima);
     }
+    
+    // Gabungkan hasil dari kedua query
+    const allRelations = [...(relationsPeminjam || []), ...(relationsPenerima || [])];
+    const uniqueFriends = new Map();
 
-    data.forEach((item) => {
-        if (item.profiles) {
-            const li = document.createElement("li");
-            li.className = "found-nasabah";
-            li.textContent = `👤 ${item.profiles.nama} (${item.profiles.email})`;
-            li.onclick = () =>
-                fetchDataByFriend(item.profiles.id, item.profiles.nama);
-            friendsList.appendChild(li);
+    allRelations.forEach(rel => {
+        if (rel.profiles) {
+            uniqueFriends.set(rel.profiles.id, rel.profiles);
         }
     });
 
-    debugLog("✅ Daftar nasabah berhasil dimuat", data);
+    friendsList.innerHTML = "";
+
+    if (uniqueFriends.size === 0) {
+        debugLog("ℹ️ Tidak ada relasi nasabah untuk user ini.");
+        friendsList.innerHTML = '<p style="padding: 10px; color: #888;">Belum ada nasabah.</p>';
+        return;
+    }
+
+    uniqueFriends.forEach((profile) => {
+        const li = document.createElement("li");
+        li.className = "found-nasabah";
+        li.textContent = `👤 ${profile.nama} (${profile.email})`;
+        li.onclick = () =>
+            fetchDataByFriend(profile.id, profile.nama);
+        friendsList.appendChild(li);
+    });
+
+    debugLog("✅ Daftar nasabah berhasil dimuat", uniqueFriends.size);
 }
 
 window.markAsReturned = async (id) => {
@@ -895,7 +917,7 @@ function renderList(container, data) {
 
         div.innerHTML = `
             <div class="item-info">
-                <span>${formatRupiah(d.jumlah)}<br><small>${d.tanggal_pinjam}</small><br><small>Nasabah: ${d.nama_nasabah}</small></span>
+                <span>${formatRupiah(d.jumlah)}<br><small>${d.tanggal_pinjam}</small></span>
             </div>
             <div>
                 ${lunasiButton}
